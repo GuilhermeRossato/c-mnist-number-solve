@@ -24,5 +24,5 @@ For documentation purposes, the version I'm running is `gcc (Debian 6.3.0-18+deb
 
 Huge thanks to the contributors to the tools and dataset used in this project as without them this project would not be possible.
 
- - [FANN](http://leenissen.dk/fann/wp/) Library is a free open source neural network library, which implements multilayer artificial neural networks in C with support for both fully connected and sparsely connected networks
- - [MNIST Handwritten Dataset](http://yann.lecun.com/exdb/mnist/)
+ - [FANN](http://leenissen.dk/fann/wp/) Library is a free open source neural network library, which implements multilayer artificial neural networks in C with support for both fully connected and sparsely connected networks. [It also has a github repo.](https://github.com/libfann/fann/).
+ - [MNIST Handwritten Dataset](http://yann.lecun.com/exdb/mnist/) is a database of of handwritten digits made from the larger subset NIST, it is good for people who want to try learning techniques and pattern recognition methods on real-world data while spending minimal efforts on preprocessing and formatting.
