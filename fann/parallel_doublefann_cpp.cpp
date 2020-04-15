@@ -17,17 +17,11 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef __doublefann_h__
-#define __doublefann_h__
+/* Easy way to allow for build of multiple binaries */
 
-typedef double fann_type;
+#ifndef DISABLE_PARALLEL_FANN
+#include "config.h"
+#include "doublefann.h"
 
-#undef DOUBLEFANN
-#define DOUBLEFANN
-#define FANNPRINTF "%.20e"
-#define FANNSCANF "%le"
-
-#define FANN_INCLUDE
-#include "fann.h"
-
-#endif
+#include "parallel_fann_cpp.cpp"
+#endif /* DISABLE_PARALLEL_FANN */
