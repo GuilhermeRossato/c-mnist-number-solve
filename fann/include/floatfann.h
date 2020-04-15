@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 typedef float fann_type;
 
+#error "This project should be using double, remove this error if you're changing this"
+
 #undef FLOATFANN
 #define FLOATFANN
 #define FANNPRINTF "%.20e"
