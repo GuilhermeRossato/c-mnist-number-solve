@@ -18,6 +18,13 @@ struct hyperparameters {
     unsigned int layers_size;
     unsigned int * layers;
     unsigned int is_random_weight;
+    enum {
+        TRAINING_ALGORITHM_INCREMENTAL = 0, // Weights are updated after each training set
+        TRAINING_ALGORITHM_BATCH, // Standard backpropagation algorithm
+	    TRAINING_ALGORITHM_RPROP, // The iRPROP training algorithm which is described by [Igel and Husken, 2000]
+	    TRAINING_ALGORITHM_QUICKPROP, // The quickprop training algorithm is described by [Fahlman, 1988]
+        TRAINING_ALGORITHM_SARPROP // I have no idea what this is
+    } training_algorithm;
 };
 
 /**
@@ -35,6 +42,7 @@ struct hyperparameters * create_hyperparameters(int processId) {
     h->layers[3] = 1;
     h->layers[4] = 0;
     h->is_random_weight = 1;
+    h->training_algorithm = FANN_TRAIN_BATCH;
     return h;
 }
 
@@ -60,7 +68,18 @@ struct fann * fann_create_standard_array(unsigned int num_layers, const unsigned
  * destroyed explicitly by calling `fann_destroy`.
 */
 struct fann * create_network_with_hyperparameters(struct hyperparameters * h) {
-    return fann_create_standard_array(h->layers_size, h->layers);
+    struct fann * ann = fann_create_standard_array(h->layers_size, h->layers);
+
+    fann_set_training_algorithm(ann, h->training_algorithm);
+
+    if (h->is_random_weight) {
+        fann_randomize_weights(ann, -0.1, 0.1);
+    } else {
+        // Uses Widrow + Nguyen's algorithm, but that requires data.
+        // fann_init_weight(ann, data);
+    }
+
+    return ann;
 }
 
 void fann_randomize_weights(struct fann * ann, double min_weight, double max_weight);
@@ -72,7 +91,8 @@ int main() {
 
     struct fann * ann = create_network_with_hyperparameters(h);
 
-    fann_randomize_weights(ann, -0.1, 0.1);
+    fann_set_activation_function_hidden(ann, FANN_SIGMOID_SYMMETRIC);
+    fann_set_activation_function_output(ann, FANN_SIGMOID_SYMMETRIC);
 
     fann_print_connections(ann);
 
