@@ -84,6 +84,8 @@ struct fann * create_network_with_hyperparameters(struct hyperparameters * h) {
 }
 
 void fann_randomize_weights(struct fann * ann, double min_weight, double max_weight);
+struct fann_train_data * fann_create_train_pointer_array(unsigned int num_data, unsigned int num_input, double **input, unsigned int num_output, double **output);
+void fann_train_on_file(struct fann *ann, const char *filename, unsigned int max_epochs, unsigned int epochs_between_reports, float desired_error);
 
 int main() {
     srand((unsigned int) time(0));
@@ -111,10 +113,10 @@ int main() {
     }
 
     struct fann_train_data * data = fann_create_train_pointer_array(
-        4,
-        2,
+        4, // Amount of training data
+        2, // Input size
         input,
-        1,
+        1, // Output size
         output
     );
 
@@ -124,9 +126,9 @@ int main() {
         fann_train_on_data(
             ann,
             data,
-            50000,
-            5000,
-            0.001
+            50000, // max epochs
+            5000, // epochs between reports
+            0.001 // desired error
         );
     } else {
         printf("Training network on file 'xor.data':\n");
