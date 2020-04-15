@@ -26,6 +26,7 @@ struct hyperparameters {
 	    TRAINING_ALGORITHM_QUICKPROP, // The quickprop training algorithm is described by [Fahlman, 1988]
         TRAINING_ALGORITHM_SARPROP // I have no idea what this is
     } training_algorithm;
+    float learning_rate;
 };
 
 /**
@@ -38,12 +39,12 @@ struct hyperparameters * create_hyperparameters(int processId) {
     h->layers_size = 4;
     h->layers = malloc(sizeof(unsigned int) * (h->layers_size + 1));
     h->layers[0] = 2;
-    h->layers[1] = 8;
-    h->layers[2] = 8;
+    h->layers[1] = 3;
+    h->layers[2] = 3;
     h->layers[3] = 1;
-    h->layers[4] = 0;
     h->is_random_weight = 1;
     h->training_algorithm = TRAINING_ALGORITHM_INCREMENTAL;
+    h->learning_rate = 0.96;
     return h;
 }
 
@@ -72,6 +73,7 @@ struct fann * create_network_with_hyperparameters(struct hyperparameters * h) {
     struct fann * ann = fann_create_standard_array(h->layers_size, h->layers);
 
     fann_set_training_algorithm(ann, h->training_algorithm);
+    fann_set_learning_rate(ann, h->learning_rate);
 
     if (h->is_random_weight) {
         fann_randomize_weights(ann, -0.1, 0.1);
