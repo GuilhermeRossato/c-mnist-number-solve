@@ -50,6 +50,44 @@ void destroy_idx_data(struct idx_struct * idx) {
 
 const char letters_by_occupancy[95] = {' ', '`', '.', '-', '\'', ':', '_', ',', '^', '"', '~', ';', '!', '\\', '>', '/', '=', '*', '<', '+', 'r', 'c', 'v', 'L', '?', ')', 'z', '{', '(', '|', 'T', '}', 'J', '7', 'x', 's', 'u', 'n', 'Y', 'i', 'C', 'y', 'l', 't', 'F', 'w', '1', 'o', '[', ']', 'f', '3', 'I', 'j', 'Z', 'a', 'e', '5', 'V', '2', 'h', 'k', 'S', 'U', 'q', '9', 'P', '6', '4', 'd', 'K', 'p', 'A', 'E', 'b', 'O', 'G', 'm', 'R', 'H', 'X', 'N', 'M', 'D', '8', 'W', '#', '0', 'B', '$', '%', 'Q', 'g', '&', '@'};
 
+void print_grayscale_image(double * image, uint32_t width, uint32_t height, double * expected, double * output) {
+    uint32_t index;
+    char letter;
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            index = 95.0 * ((1.0 + image[x + y * width]) / 2.0);
+            if (index < 0)
+                index = 0;
+            else if (index >= 95)
+                index = 94;
+            putchar(letters_by_occupancy[index]);
+        }
+        putchar('\n');
+    }
+    if (expected) {
+        printf("Real number: ");
+        int maxValueId = 0;
+        double maxValue = expected[maxValueId];
+        for (int i = 1; i < 10; i++) {
+            if (expected[i] > maxValue) {
+                maxValueId = i;
+                maxValue = expected[maxValueId];
+            }
+        }
+        printf("%d (%.2f)\n", maxValueId, maxValue);
+    }
+    if (output) {
+        printf("Predicted: ");
+        int maxValueId = 0;
+        double maxValue = output[maxValueId];
+        for (int i = 1; i < 10; i++) {
+            if (output[i] > maxValue) {
+                maxValueId = i;
+                maxValue = output[maxValueId];
+            }
+        }
+        printf("%d (%.2f)\n", maxValueId, maxValue);
+    }
 }
 
 int validate_data_from_files(struct idx_struct * train_images, struct idx_struct * train_labels, struct idx_struct * test_images, struct idx_struct * test_labels) {
@@ -108,6 +146,9 @@ int main() {
         }
     }
 
+    for (int i = 0; i < 10; i++) {
+        print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], train_output[i], 0);
+    }
 
     struct hyperparameters * h = create_hyperparameters(train_images->dimensions[1], train_images->dimensions[2], 10);
 
