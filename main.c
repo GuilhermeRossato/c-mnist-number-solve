@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <math.h>
 
 #define FANN_NO_DLL
@@ -9,90 +10,106 @@
 #include "fann/doublefann.c"
 #include "fann/include/fann.h"
 
-/**
- * Struct: hyperparameters
- *
- * Holds hyper parameters used for the creation of a neural network
- * Should be created with `create_hyperparameters` and destroyed with `destroy_hyperparameters`
- */
-struct hyperparameters {
-    unsigned int layers_size;
-    unsigned int * layers;
-    unsigned int is_random_weight;
-    enum {
-        TRAINING_ALGORITHM_INCREMENTAL = 0, // Weights are updated after each training set
-        TRAINING_ALGORITHM_BATCH, // Standard backpropagation algorithm
-	    TRAINING_ALGORITHM_RPROP, // The iRPROP training algorithm which is described by [Igel and Husken, 2000]
-	    TRAINING_ALGORITHM_QUICKPROP, // The quickprop training algorithm is described by [Fahlman, 1988]
-        TRAINING_ALGORITHM_SARPROP // I have no idea what this is
-    } training_algorithm;
-    float learning_rate;
-};
+#include "hyperparameters.h"
+#include "hyperparameters.c"
 
-/**
- * Function: create_hyperparameters
- *
- * Allocates a space in memory for a hyperparameter, populate and return it.
-*/
-struct hyperparameters * create_hyperparameters(int processId) {
-    struct hyperparameters * h = malloc(sizeof(struct hyperparameters));
-    h->layers_size = 4;
-    h->layers = malloc(sizeof(unsigned int) * (h->layers_size + 1));
-    h->layers[0] = 2;
-    h->layers[1] = 3;
-    h->layers[2] = 3;
-    h->layers[3] = 1;
-    h->is_random_weight = 1;
-    h->training_algorithm = TRAINING_ALGORITHM_INCREMENTAL;
-    h->learning_rate = 0.96;
-    return h;
-}
-
-/**
- * Function: destroy_hyperparameters
- *
- * Deallocates a hyperparameter object.
-*/
-void destroy_hyperparameters(struct hyperparameters * h) {
-    free(h->layers);
-    free(h);
-}
+#include "idx_reader.h"
+#include "idx_reader.c"
 
 struct fann * fann_create_standard_array(unsigned int num_layers, const unsigned int * layers);
-
-/**
- * Function: create_network_with_hyperparameters
- *
- * Translates hyperparameters struct into the necessary inputs to create
- * the neural network, and returns the created new neural network.
- *
- * As per instructions on the fann library, the created neural network must be
- * destroyed explicitly by calling `fann_destroy`.
-*/
-struct fann * create_network_with_hyperparameters(struct hyperparameters * h) {
-    struct fann * ann = fann_create_standard_array(h->layers_size, h->layers);
-
-    fann_set_training_algorithm(ann, h->training_algorithm);
-    fann_set_learning_rate(ann, h->learning_rate);
-
-    if (h->is_random_weight) {
-        fann_randomize_weights(ann, -0.1, 0.1);
-    } else {
-        // Uses Widrow + Nguyen's algorithm, but that requires data.
-        // fann_init_weight(ann, data);
-    }
-
-    return ann;
-}
-
 void fann_randomize_weights(struct fann * ann, double min_weight, double max_weight);
 struct fann_train_data * fann_create_train_pointer_array(unsigned int num_data, unsigned int num_input, double **input, unsigned int num_output, double **output);
 void fann_train_on_file(struct fann *ann, const char *filename, unsigned int max_epochs, unsigned int epochs_between_reports, float desired_error);
 
+enum source_type_t {source_type_test, source_type_train};
+enum input_type_t {input_type_image, input_type_label};
+
+struct idx_struct * create_idx_data_by_loading_file(
+    enum source_type_t source_type,
+    enum input_type_t input_type
+) {
+    char filename[256];
+    snprintf(
+        filename,
+        256-1,
+        "./data/%s-%s-ubyte",
+        source_type == source_type_test ? "test" : "train",
+        input_type == input_type_image ? "images.idx3" : "labels.idx1"
+    );
+    return create_idx_from_file(filename);
+}
+
+void destroy_idx_data(struct idx_struct * idx) {
+    if (idx == NULL) {
+        return;
+    }
+    free(idx->dimensions);
+    free(idx->data);
+    free(idx);
+}
+
+const char letters_by_occupancy[95] = {' ', '`', '.', '-', '\'', ':', '_', ',', '^', '"', '~', ';', '!', '\\', '>', '/', '=', '*', '<', '+', 'r', 'c', 'v', 'L', '?', ')', 'z', '{', '(', '|', 'T', '}', 'J', '7', 'x', 's', 'u', 'n', 'Y', 'i', 'C', 'y', 'l', 't', 'F', 'w', '1', 'o', '[', ']', 'f', '3', 'I', 'j', 'Z', 'a', 'e', '5', 'V', '2', 'h', 'k', 'S', 'U', 'q', '9', 'P', '6', '4', 'd', 'K', 'p', 'A', 'E', 'b', 'O', 'G', 'm', 'R', 'H', 'X', 'N', 'M', 'D', '8', 'W', '#', '0', 'B', '$', '%', 'Q', 'g', '&', '@'};
+
+}
+
+int validate_data_from_files(struct idx_struct * train_images, struct idx_struct * train_labels, struct idx_struct * test_images, struct idx_struct * test_labels) {
+    if (!train_images || !train_labels || !test_images || !test_labels) {
+        printf("Closing due to file error\n");
+        return 0;
+    } else if (train_images->dimensions[0] != train_labels->dimensions[0]) {
+        printf("Training image amount does not match label amount (%d != %d)\n", train_images->dimensions[0], train_labels->dimensions[0]);
+        return 0;
+    } else if (test_images->dimensions[0] != test_labels->dimensions[0]) {
+        printf("Test image amount does not match label amount (%d != %d)\n", test_images->dimensions[0], test_labels->dimensions[0]);
+        return 0;
+    } else if (train_images->dimensions_size != 3 || train_labels->dimensions_size != 1 || test_images->dimensions_size != 3 || test_labels->dimensions_size != 1) {
+        printf(
+            "The dimension amount of train data (%d, %d) or the test data (%d, %d) does not match the expected (3, 2)\n",
+            train_images->dimensions_size,
+            train_labels->dimensions_size,
+            test_images->dimensions_size,
+            test_labels->dimensions_size
+        );
+        return 0;
+    }
+    return 1;
+}
+
 int main() {
     srand((unsigned int) time(0));
 
-    struct hyperparameters * h = create_hyperparameters(0);
+    printf("Reading input files.\n");
+
+    struct idx_struct * train_images = create_idx_data_by_loading_file(source_type_train, input_type_image);
+    struct idx_struct * train_labels = create_idx_data_by_loading_file(source_type_train, input_type_label);
+    struct idx_struct * test_images = create_idx_data_by_loading_file(source_type_test, input_type_image);
+    struct idx_struct * test_labels = create_idx_data_by_loading_file(source_type_test, input_type_label);
+
+    if (!validate_data_from_files(train_images, train_labels, test_images, test_labels)) {
+        return 1;
+    }
+
+    printf("Creating dataset from file data.\n");
+
+    train_images->dimensions[0] /= 3;
+    train_labels->dimensions[0] /= 3;
+
+    double ** train_input = malloc(sizeof(double *) * train_images->dimensions[0]);
+    double ** train_output = malloc(sizeof(double *) * train_labels->dimensions[0]);
+
+    for (int i = 0; i < train_images->dimensions[0]; i++) {
+        train_input[i] = malloc(sizeof(double) * train_images->dimensions[1] * train_images->dimensions[2]);
+        for (int j = 0; j < train_images->dimensions[1] * train_images->dimensions[2]; j++) {
+            train_input[i][j] = 2.0 * train_images->data[i * (train_images->dimensions[1] * train_images->dimensions[2]) + j] / 255.0 - 1.0;
+        }
+        train_output[i] = malloc(sizeof(double) * 10);
+        for (int j = 0; j < 10; j++) {
+            train_output[i][j] = train_labels->data[i] == j ? 1.0 : -1.0;
+        }
+    }
+
+
+    struct hyperparameters * h = create_hyperparameters(train_images->dimensions[1], train_images->dimensions[2], 10);
 
     printf("Creating network.\n");
     struct fann * ann = create_network_with_hyperparameters(h);
@@ -100,67 +117,44 @@ int main() {
     fann_set_activation_function_hidden(ann, FANN_SIGMOID_SYMMETRIC);
     fann_set_activation_function_output(ann, FANN_SIGMOID_SYMMETRIC);
 
-    printf("Creating data.\n");
-    double ** input = malloc(sizeof(double*) * 4);
-    double ** output = malloc(sizeof(double*) * 4);
-    for (int i = 0; i < 4; i++) {
-        input[i] = malloc(sizeof(double) * 2);
-        output[i] = malloc(sizeof(double) * 1);
-        int x = i % 2;
-        int y = i / 2;
-
-        input[i][0] = x == 0 ? -1.0 : 1.0;
-        input[i][1] = y == 0 ? -1.0 : 1.0;
-        output[i][0] = x != y ? 1.0 : -1.0;
-    }
-
     struct fann_train_data * data = fann_create_train_pointer_array(
-        4, // Amount of training data
-        2, // Input size
-        input,
-        1, // Output size
-        output
+        train_images->dimensions[0], // Amount of training data
+        train_images->dimensions[1] * train_images->dimensions[2], // Input size
+        train_input,
+        10, // Output size
+        train_output
     );
 
-    if (rand()%2) {
-        printf("Training network on data struct:\n");
-
-        fann_train_on_data(
-            ann,
-            data,
-            50000, // max epochs
-            5000, // epochs between reports
-            0.001 // desired error
-        );
-    } else {
-        printf("Training network on file 'xor.data':\n");
-
-        fann_train_on_file(
-            ann,
-            "xor.data",
-            50000, // max epochs
-            10000, // epochs between reports
-            0.001 // desired error
-        );
-    }
+    printf("Training network.\n");
+    fann_train_on_data(
+        ann,
+        data,
+        100, // max epochs
+        5, // epochs between reports
+        0.001 // desired error
+    );
 
     printf("Testing network:\n");
-    for (int i = 0; i < 4; i++) {
-        double * result = fann_run(ann, input[i]);
-        double * expected = output[i];
-        printf("%5.1f, %5.1f = %6.2f (expected %6.2f, error: %6.2f)\n", input[i][0], input[i][1], result[0], expected[0], expected[0] - result[0]);
+    for (int i = 0; i < 5; i++) {
+        double * result = fann_run(ann, train_input[i]);
+        double * expected = train_output[i];
+        print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], expected, result);
     }
 
-    for (int i = 0; i < 4; i++) {
-        free(input[i]);
-        free(output[i]);
+    for (int i = 0; i < train_labels->dimensions[0]; i++) {
+        free(train_input[i]);
+        free(train_output[i]);
     }
-    free(input);
-    free(output);
+
     fann_destroy_train(data);
-
     fann_destroy(ann);
     destroy_hyperparameters(h);
+    free(train_input);
+    free(train_output);
+    destroy_idx_data(train_images);
+    destroy_idx_data(train_labels);
+    destroy_idx_data(test_images);
+    destroy_idx_data(test_labels);
 
     return 0;
 }
