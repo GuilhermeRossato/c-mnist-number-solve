@@ -18,8 +18,8 @@ struct hyperparameters * create_hyperparameters(int input_x, int input_y, int ou
     h->layers_size = 4;
     h->layers = malloc(sizeof(unsigned int) * (h->layers_size + 1));
     h->layers[0] = input_x * input_y;
-    h->layers[1] = 3;
-    h->layers[2] = 3;
+    h->layers[1] = 49;
+    h->layers[2] = 10;
     h->layers[3] = output_size;
     h->is_random_weight = 1;
     h->training_algorithm = TRAINING_ALGORITHM_INCREMENTAL;

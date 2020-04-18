@@ -8,7 +8,7 @@ Benchmark the performance and my knowleadge of the fann library, as well as some
 
 ## Environment
 
-I will be using Linux (Debian) x64 to build and test the project, but it should not be heavily OS-dependant as everything is very straightforward.
+I will be using Linux (Debian 4.9) AMD64 to build and test the project, but it should not be heavily OS-dependant as everything is very straightforward.
 
 ## Building / Compilation
 
@@ -24,7 +24,7 @@ For documentation purposes, the version I'm running is `gcc (Debian 6.3.0-18+deb
 
 ## Results
 
-The code managed to load, train (100 epoch, 60000 train images) and validate it entirely in 11 minutes, without gcc optimization, in the smallest VM available at Google Compute (f1-micro, which is a single virtual CPU and 0.6 GB memory), achieving 54509 correct guesses out of 60000 (90.85 %) for training data and 9071 out of 10000 (90.71 %) for test data on a network with 4 fully-connected layers: 784 > 3 > 3 > 10.
+The code managed to load, train (100 epoch, 60000 train images) and validate it entirely in 11 minutes, without gcc optimization, in the smallest VM available at Google Compute (f1-micro, which is a single virtual CPU and 0.6 GB memory), achieving 54509 correct guesses out of 60000 (90.85 %) for training data and 9071 out of 10000 (90.71 %) for test data on a network with 4 fully-connected layers: 784 > 3 > 3 > 10, using incremental algorithm (weights are updated after each training set) and a learning rate of 0.1 or 0.9 depending on how you interpret that number.
 
 By optimizing it with `-O3` at the compiler, I managed to get it to run in 2 minute and 52 seconds in the same environment, with 87.17 % accuracy for training data and 87.81 % for test data.
 
@@ -35,6 +35,10 @@ A good command to compile and time the execution is this:
 ```
 gcc -O3 -Wfatal-errors -Ifann/include -lm -o ./main main.c && time ./main
 ```
+
+By changing the network layer sizes to 728, 49, 10, 10, and epochs to 15, I managed to get 95.67% accuracy after training for 5:39 (with -O3 optimization).
+
+Future works could expand this project by the implementation of a Grid Search to find the optimum hyperparameter configuration. As described by the literature surrounding this dataset, pooling, max, flattening and deskeewing the input prior to feeding it to the network would yield vastly better results, although 'vastly' is debatable, since it would go up from 96% to 99%.
 
 ## Visualizing input
 

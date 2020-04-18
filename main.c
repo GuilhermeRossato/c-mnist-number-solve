@@ -230,8 +230,8 @@ int main() {
     fann_train_on_data(
         ann,
         data,
-        100, // max epochs
-        5, // epochs between reports
+        15, // max epochs
+        3, // epochs between reports
         0.001 // desired error
     );
 
