@@ -71,7 +71,6 @@ void print_grayscale_image(double * image, uint32_t width, uint32_t height, doub
                 index = 0;
             else if (index >= 95)
                 index = 94;
-            //printf("%.10f ", image[x + y * width]);
             putchar(letters_by_occupancy[index]);
         }
         putchar('\n');
@@ -86,7 +85,11 @@ void print_grayscale_image(double * image, uint32_t width, uint32_t height, doub
                 maxValue = expected[maxValueId];
             }
         }
-        printf("%d (%.2f)\n", maxValueId, maxValue);
+        if (maxValue != 1.0f) {
+            printf("%d (%.2f)\n", maxValueId, maxValue);
+        } else {
+            printf("%d\n", maxValueId);
+        }
     }
     if (output) {
         printf("Predicted: ");
@@ -141,25 +144,70 @@ int main() {
 
     printf("Creating dataset from file data.\n");
 
-    train_images->dimensions[0] /= 3;
-    train_labels->dimensions[0] /= 3;
+    train_images->dimensions[0] /= 1;
+    train_labels->dimensions[0] /= 1;
+    test_images->dimensions[0] /= 1;
+    test_labels->dimensions[0] /= 1;
 
     double ** train_input = malloc(sizeof(double *) * train_images->dimensions[0]);
     double ** train_output = malloc(sizeof(double *) * train_labels->dimensions[0]);
+    double ** test_input = malloc(sizeof(double *) * test_images->dimensions[0]);
+    double ** test_output = malloc(sizeof(double *) * test_labels->dimensions[0]);
 
+    if (!train_input || !train_output || !test_input || !test_output) {
+        printf("Could not allocate training data\n");
+        return 1;
+    }
+
+    // Allocate memory for double inputs and outputs
     for (int i = 0; i < train_images->dimensions[0]; i++) {
-        train_input[i] = malloc(sizeof(double) * train_images->dimensions[1] * train_images->dimensions[2]);
+        train_input[i] = malloc(sizeof(double) * (train_images->dimensions[1] * train_images->dimensions[2]));
+        if (!train_input[i]) {
+            printf("Could not allocate training inputs\n");
+            return 1;
+        }
+        train_output[i] = malloc(sizeof(double) * 10);
+        if (!train_output[i]) {
+            printf("Could not allocate training outputs\n");
+            return 1;
+        }
+    }
+    for (int i = 0; i < test_images->dimensions[0]; i++) {
+        test_input[i] = malloc(sizeof(double) * (test_images->dimensions[1] * test_images->dimensions[2]));
+        if (!test_input[i]) {
+            printf("Could not allocate test inputs\n");
+            return 1;
+        }
+        test_output[i] = malloc(sizeof(double) * 10);
+        if (!test_output[i]) {
+            printf("Could not allocate test outputs\n");
+            return 1;
+        }
+    }
+    for (int i = 0; i < train_images->dimensions[0]; i++) {
         for (int j = 0; j < train_images->dimensions[1] * train_images->dimensions[2]; j++) {
             train_input[i][j] = 2.0 * train_images->data[i * (train_images->dimensions[1] * train_images->dimensions[2]) + j] / 255.0 - 1.0;
         }
-        train_output[i] = malloc(sizeof(double) * 10);
         for (int j = 0; j < 10; j++) {
             train_output[i][j] = train_labels->data[i] == j ? 1.0 : -1.0;
         }
     }
-
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < test_images->dimensions[0]; i++) {
+        for (int j = 0; j < test_images->dimensions[1] * test_images->dimensions[2]; j++) {
+            test_input[i][j] = 2.0 * test_images->data[i * (test_images->dimensions[1] * test_images->dimensions[2]) + j] / 255.0 - 1.0;
+        }
+        for (int j = 0; j < 10; j++) {
+            test_output[i][j] = test_labels->data[i] == j ? 1.0 : -1.0;
+        }
+    }
+    printf("Samples:\n");
+    for (int i = 0; i < 3; i++) {
+        printf("Sample %d from training images:\n", i);
         print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], train_output[i], 0);
+    }
+    for (int i = 0; i < 3; i++) {
+        printf("Sample %d from test images:\n", i);
+        print_grayscale_image(test_input[i], test_images->dimensions[1], test_images->dimensions[2], test_output[i], 0);
     }
 
     struct hyperparameters * h = create_hyperparameters(train_images->dimensions[1], train_images->dimensions[2], 10);
@@ -187,16 +235,78 @@ int main() {
         0.001 // desired error
     );
 
-    printf("Testing network:\n");
-    for (int i = 0; i < 5; i++) {
+    int corrects = 0;
+    int incorrects = 0;
+    printf("Testing network with training data:\n");
+    for (int i = 0; i < train_images->dimensions[0]; i++) {
         double * result = fann_run(ann, train_input[i]);
         double * expected = train_output[i];
-        print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], expected, result);
+        if (i < 5) {
+            print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], expected, result);
+        }
+
+        int expectedMaxValueId = 0;
+        double expectedMaxValue = result[expectedMaxValueId];
+        int outputMaxValueId = 0;
+        double outputMaxValue = expected[outputMaxValueId];
+        for (int i = 1; i < 10; i++) {
+            if (result[i] > expectedMaxValue) {
+                outputMaxValueId = i;
+                outputMaxValue = result[outputMaxValueId];
+            }
+            if (expected[i] > expectedMaxValue) {
+                expectedMaxValueId = i;
+                expectedMaxValue = expected[expectedMaxValueId];
+            }
+        }
+
+        if (expectedMaxValueId == outputMaxValueId) {
+            corrects++;
+        } else {
+            incorrects++;
+        }
     }
+    printf("Matches %d out of %d (%.2f %%)\n", corrects, corrects+incorrects, 100.0f * corrects / (corrects + incorrects));
+    printf("Testing network with testing data:\n");
+    corrects = 0;
+    incorrects = 0;
+    for (int i = 0; i < test_images->dimensions[0]; i++) {
+        double * result = fann_run(ann, test_input[i]);
+        double * expected = test_output[i];
+        if (i < 5) {
+            print_grayscale_image(test_input[i], test_images->dimensions[1], test_images->dimensions[2], expected, result);
+        }
+
+        int expectedMaxValueId = 0;
+        double expectedMaxValue = result[expectedMaxValueId];
+        int outputMaxValueId = 0;
+        double outputMaxValue = expected[outputMaxValueId];
+        for (int i = 1; i < 10; i++) {
+            if (result[i] > expectedMaxValue) {
+                outputMaxValueId = i;
+                outputMaxValue = result[outputMaxValueId];
+            }
+            if (expected[i] > expectedMaxValue) {
+                expectedMaxValueId = i;
+                expectedMaxValue = expected[expectedMaxValueId];
+            }
+        }
+
+        if (expectedMaxValueId == outputMaxValueId) {
+            corrects++;
+        } else {
+            incorrects++;
+        }
+    }
+    printf("Matches %d out of %d (%.2f %%)\n", corrects, corrects+incorrects, 100.0f * corrects / (corrects + incorrects));
 
     for (int i = 0; i < train_labels->dimensions[0]; i++) {
         free(train_input[i]);
         free(train_output[i]);
+    }
+    for (int i = 0; i < test_images->dimensions[0]; i++) {
+        free(test_input[i]);
+        free(test_output[i]);
     }
 
     fann_destroy_train(data);
@@ -204,6 +314,8 @@ int main() {
     destroy_hyperparameters(h);
     free(train_input);
     free(train_output);
+    free(test_input);
+    free(test_output);
     destroy_idx_data(train_images);
     destroy_idx_data(train_labels);
     destroy_idx_data(test_images);
