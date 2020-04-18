@@ -12,9 +12,9 @@ I will be using Linux (Debian 4.9) AMD64 to build and test the project, but it s
 
 ## Building / Compilation
 
-I'm a simple guy and this is a simple project so I will not be using tools that create instructions that create build steps that create executables.
+I'm a simple guy and this is a simple project so I will not be using tools that create instructions that create build steps that run compilers that create executables from my code because I think that is disproportionate.
 
-So I will be compiling the project with the GNU Compiler Collection, which can be retrieved from the build-essentials package: `sudo apt install build-essential`.
+I will be compiling the project with the GNU Compiler Collection, which can be retrieved from the build-essentials package: `sudo apt install build-essential`. The command I use to compile is the following:
 
 ```
 gcc -Wfatal-errors -Ifann/include -lm -o ./main main.c
@@ -76,5 +76,5 @@ Neat, isnt it? Feel free to copy it if you fancy it.
 
 Huge thanks to the contributors to the tools and dataset used in this project as without them this project would not be possible.
 
- - [FANN](http://leenissen.dk/fann/wp/) Library is a free open source neural network library, which implements multilayer artificial neural networks in C with support for both fully connected and sparsely connected networks. [It also has a github repo.](https://github.com/libfann/fann/).
+ - [FANN](http://leenissen.dk/fann/wp/) Library is a free open source neural network library, which implements multilayer artificial neural networks in C with support for both fully connected and sparsely connected networks. [Github Repository](https://github.com/libfann/fann/).
  - [MNIST Handwritten Dataset](http://yann.lecun.com/exdb/mnist/) is a database of of handwritten digits made from the larger subset NIST, it is good for people who want to try learning techniques and pattern recognition methods on real-world data while spending minimal efforts on preprocessing and formatting.
