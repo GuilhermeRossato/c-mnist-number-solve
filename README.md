@@ -16,7 +16,9 @@ I'm a simple guy and this is a simple project so I will not be using tools that 
 
 So I will be compiling the project with the GNU Compiler Collection, which can be retrieved from the build-essentials package: `sudo apt install build-essential`.
 
-`gcc -Wfatal-errors -Ifann/include -lm -o ./main main.c`
+```
+gcc -Wfatal-errors -Ifann/include -lm -o ./main main.c
+```
 
 For documentation purposes, the version I'm running is `gcc (Debian 6.3.0-18+deb9u1) 6.3.0 20170516`.
 
@@ -27,6 +29,12 @@ The code managed to load, train (100 epoch, 60000 train images) and validate it 
 By optimizing it with `-O3` at the compiler, I managed to get it to run in 2 minute and 52 seconds in the same environment, with 87.17 % accuracy for training data and 87.81 % for test data.
 
 There are a lot of optimizations to be done, to improve accuracy by changing the network structure and hyper-parameters, or to improve the performance by removing costly stdout printing and its logic, but the goals of this project have been fully met.
+
+A good command to compile and time the execution is this:
+
+```
+gcc -O3 -Wfatal-errors -Ifann/include -lm -o ./main main.c && time ./main
+```
 
 ## Visualizing input
 
