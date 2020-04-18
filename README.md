@@ -1,4 +1,4 @@
-# Solving with C using the FANN library
+# A Neural Network in C to predict the output of the MNIST Handwritten dataset
 
 This project contains my attempt at using the MNIST handwritten dataset with pure C using the free open source neural network library "fann" to predict the numbers in the dataset.
 
