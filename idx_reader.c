@@ -30,7 +30,7 @@ struct idx_struct * create_idx_from_file(const char * filename) {
     printf("Reading \"%s\"\n", filename);
     FILE * fileptr = fopen(filename, "rb");
     if (fileptr == NULL) {
-        printf("Error: Could not open file: \"%s\"", filename);
+        printf("Error: Could not open file: \"%s\"\n", filename);
         return NULL;
     }
     struct idx_struct * idx = malloc(sizeof(struct idx_struct));
