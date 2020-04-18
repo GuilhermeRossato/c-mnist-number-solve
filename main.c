@@ -48,18 +48,30 @@ void destroy_idx_data(struct idx_struct * idx) {
     free(idx);
 }
 
+// Used by print_grayscale_image function
 const char letters_by_occupancy[95] = {' ', '`', '.', '-', '\'', ':', '_', ',', '^', '"', '~', ';', '!', '\\', '>', '/', '=', '*', '<', '+', 'r', 'c', 'v', 'L', '?', ')', 'z', '{', '(', '|', 'T', '}', 'J', '7', 'x', 's', 'u', 'n', 'Y', 'i', 'C', 'y', 'l', 't', 'F', 'w', '1', 'o', '[', ']', 'f', '3', 'I', 'j', 'Z', 'a', 'e', '5', 'V', '2', 'h', 'k', 'S', 'U', 'q', '9', 'P', '6', '4', 'd', 'K', 'p', 'A', 'E', 'b', 'O', 'G', 'm', 'R', 'H', 'X', 'N', 'M', 'D', '8', 'W', '#', '0', 'B', '$', '%', 'Q', 'g', '&', '@'};
 
 void print_grayscale_image(double * image, uint32_t width, uint32_t height, double * expected, double * output) {
     uint32_t index;
     char letter;
     for (uint32_t y = 0; y < height; y++) {
+        int is_line_empty = 1;
+        for (uint32_t x = 0; x < width; x++) {
+            if (image[x + y * width] != -1.0f) {
+                is_line_empty = 0;
+                break;
+            }
+        }
+        if (y != 0 && y != height-1 && is_line_empty) {
+            continue;
+        }
         for (uint32_t x = 0; x < width; x++) {
             index = 95.0 * ((1.0 + image[x + y * width]) / 2.0);
             if (index < 0)
                 index = 0;
             else if (index >= 95)
                 index = 94;
+            //printf("%.10f ", image[x + y * width]);
             putchar(letters_by_occupancy[index]);
         }
         putchar('\n');
