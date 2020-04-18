@@ -201,11 +201,11 @@ int main() {
         }
     }
     printf("Samples:\n");
-    for (int i = 0; i < 3; i++) {
+    for (int i = 2; i < 4; i++) {
         printf("Sample %d from training images:\n", i);
         print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], train_output[i], 0);
     }
-    for (int i = 0; i < 3; i++) {
+    for (int i = 2; i < 4; i++) {
         printf("Sample %d from test images:\n", i);
         print_grayscale_image(test_input[i], test_images->dimensions[1], test_images->dimensions[2], test_output[i], 0);
     }
@@ -241,7 +241,8 @@ int main() {
     for (int i = 0; i < train_images->dimensions[0]; i++) {
         double * result = fann_run(ann, train_input[i]);
         double * expected = train_output[i];
-        if (i < 5) {
+        if (i < 2) {
+            printf("Train image %d feed-forward results:\n", i);
             print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], expected, result);
         }
 
@@ -273,7 +274,8 @@ int main() {
     for (int i = 0; i < test_images->dimensions[0]; i++) {
         double * result = fann_run(ann, test_input[i]);
         double * expected = test_output[i];
-        if (i < 5) {
+        if (i < 2) {
+            printf("Test image %d feed-forward results:\n", i);
             print_grayscale_image(test_input[i], test_images->dimensions[1], test_images->dimensions[2], expected, result);
         }
 
