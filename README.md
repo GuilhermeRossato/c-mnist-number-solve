@@ -1,6 +1,6 @@
 # A Neural Network in C to predict the output of the MNIST Handwritten dataset
 
-This project contains my attempt at using the MNIST handwritten dataset with pure C using the free open source neural network library "fann" to predict the numbers in the dataset.
+This project contains my attempt at using the free open source neural network library "fann" to train a neural network to recognize the MNIST Handwritten dataset and predict the number depicted on the 28x28 grayscale image with an acceptable accuracy.
 
 ## Goals
 
