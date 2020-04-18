@@ -4,7 +4,7 @@ This project contains my attempt at using the MNIST handwritten dataset with pur
 
 ## Goals
 
-Benchmark the performance and my knowleadge of the fann library, as well as some minimal configurations for creating
+Benchmark the performance and my knowleadge of the fann library, as well as some minimal configurations for experimentating with machine learning such as hyperparameter tuning.
 
 ## Environment
 
@@ -19,6 +19,14 @@ So I will be compiling the project with the GNU Compiler Collection, which can b
 `gcc -Wfatal-errors -Ifann/include -lm -o ./main main.c`
 
 For documentation purposes, the version I'm running is `gcc (Debian 6.3.0-18+deb9u1) 6.3.0 20170516`.
+
+## Results
+
+The code managed to load, train (100 epoch, 60000 train images) and validate it entirely in 11 minutes, without gcc optimization, in the smallest VM available at Google Compute (f1-micro, which is a single virtual CPU and 0.6 GB memory), achieving 54509 correct guesses out of 60000 (90.85 %) for training data and 9071 out of 10000 (90.71 %) for test data on a network with 4 fully-connected layers: 784 > 3 > 3 > 10.
+
+By optimizing it with `-O3` at the compiler, I managed to get it to run in 2 minute and 52 seconds in the same environment, with 87.17 % accuracy for training data and 87.81 % for test data.
+
+There are a lot of optimizations to be done, to improve accuracy by changing the network structure and hyper-parameters, or to improve the performance by removing costly stdout printing and its logic, but the goals of this project have been fully met.
 
 ## Visualizing input
 
