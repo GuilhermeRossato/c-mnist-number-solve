@@ -20,6 +20,38 @@ So I will be compiling the project with the GNU Compiler Collection, which can b
 
 For documentation purposes, the version I'm running is `gcc (Debian 6.3.0-18+deb9u1) 6.3.0 20170516`.
 
+## Visualizing input
+
+I managed to write a really nice function (`print_grayscale_image`) to print the number on the console, like so:
+```
+
+            raR@@lJar
+           J#&@KR&&@S
+         `c%&K?`'6&@t
+         s&&4:  x&&D,
+        ]@&Z:   X&&|
+       1@g9-  .|Q@[
+      :#&9   \b&&S'
+      ^&&;^FE$@&&(
+      :#&@&&&88&#
+       r0@X3/^p&j
+             L@@C
+             z@&,
+              @&,
+             z@&,
+             i@&,
+             =@@,
+              N&r
+              s&K/
+              :4&U'
+               :Z&/
+
+Real number: 9
+Predicted: 9 (-0.14)
+```
+
+Neat, isnt it? Feel free to copy it if you fancy it.
+
 ## Credits
 
 Huge thanks to the contributors to the tools and dataset used in this project as without them this project would not be possible.
