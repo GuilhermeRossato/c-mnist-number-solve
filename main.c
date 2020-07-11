@@ -7,14 +7,16 @@
 #define FANN_NO_SEED
 #define DISABLE_PARALLEL_FANN
 
-#include "fann/doublefann.c"
-#include "fann/include/fann.h"
+#include "fann/doublefann.h"
 
 #include "hyperparameters.h"
 #include "hyperparameters.c"
 
 #include "idx_reader.h"
 #include "idx_reader.c"
+
+#define IS_INPUT_ZERO_TO_ONE 1
+#define IS_OUTPUT_ZERO_TO_ONE 1
 
 struct fann * fann_create_standard_array(unsigned int num_layers, const unsigned int * layers);
 void fann_randomize_weights(struct fann * ann, double min_weight, double max_weight);
@@ -51,7 +53,7 @@ void destroy_idx_data(struct idx_struct * idx) {
 // Used by print_grayscale_image function
 const char letters_by_occupancy[95] = {' ', '`', '.', '-', '\'', ':', '_', ',', '^', '"', '~', ';', '!', '\\', '>', '/', '=', '*', '<', '+', 'r', 'c', 'v', 'L', '?', ')', 'z', '{', '(', '|', 'T', '}', 'J', '7', 'x', 's', 'u', 'n', 'Y', 'i', 'C', 'y', 'l', 't', 'F', 'w', '1', 'o', '[', ']', 'f', '3', 'I', 'j', 'Z', 'a', 'e', '5', 'V', '2', 'h', 'k', 'S', 'U', 'q', '9', 'P', '6', '4', 'd', 'K', 'p', 'A', 'E', 'b', 'O', 'G', 'm', 'R', 'H', 'X', 'N', 'M', 'D', '8', 'W', '#', '0', 'B', '$', '%', 'Q', 'g', '&', '@'};
 
-void print_grayscale_image(double * image, uint32_t width, uint32_t height, double * expected, double * output) {
+void print_grayscale_image(double * image, uint32_t width, uint32_t height) {
     uint32_t index;
     char letter;
     for (uint32_t y = 0; y < height; y++) {
@@ -74,34 +76,6 @@ void print_grayscale_image(double * image, uint32_t width, uint32_t height, doub
             putchar(letters_by_occupancy[index]);
         }
         putchar('\n');
-    }
-    if (expected) {
-        printf("Real number: ");
-        int maxValueId = 0;
-        double maxValue = expected[maxValueId];
-        for (int i = 1; i < 10; i++) {
-            if (expected[i] > maxValue) {
-                maxValueId = i;
-                maxValue = expected[maxValueId];
-            }
-        }
-        if (maxValue != 1.0f) {
-            printf("%d (%.2f)\n", maxValueId, maxValue);
-        } else {
-            printf("%d\n", maxValueId);
-        }
-    }
-    if (output) {
-        printf("Predicted: ");
-        int maxValueId = 0;
-        double maxValue = output[maxValueId];
-        for (int i = 1; i < 10; i++) {
-            if (output[i] > maxValue) {
-                maxValueId = i;
-                maxValue = output[maxValueId];
-            }
-        }
-        printf("%d (%.2f)\n", maxValueId, maxValue);
     }
 }
 
@@ -128,200 +102,168 @@ int validate_data_from_files(struct idx_struct * train_images, struct idx_struct
     return 1;
 }
 
+float random_float_unit(void) {
+	return ((float)rand()/(float)(RAND_MAX-1));
+}
+
+struct fann_train_data * create_data_from_idx(struct idx_struct * images, struct idx_struct * labels, int label) {
+    if (labels->dimensions_size != 1) {
+        printf("Expected labels to have 1 dimension, got %d\n", labels->dimensions_size);
+        return NULL;
+    } else if (labels->dimensions[0] != images->dimensions[0]) {
+        printf("Expected labels dimension (%d) to be the same as the image dimension (%d)\n", labels->dimensions[0], images->dimensions[0]);
+        return NULL;
+    }
+
+    unsigned int num_data = labels->dimensions[0];
+    unsigned int num_input = images->dimensions[1] * images->dimensions[2];
+
+    struct fann_train_data * data = fann_create_train(num_data, num_input, 1);
+    unsigned int data_index = 0;
+    for (int i = 0; i < labels->dimensions[0]; i++) {
+        // Write input
+        for (int j = 0; j < images->dimensions[1] * images->dimensions[2]; j++) {
+            float value = images->data[i * num_input + j] / 255.0;
+            data->input[i][j] = IS_INPUT_ZERO_TO_ONE ? value : ((2.0 * value) - 1.0);
+        }
+        // Write output
+        if (((int) labels->data[i]) == ((int) label)) {
+            data->output[data_index][0] = 1;
+        } else {
+            data->output[data_index][0] = IS_INPUT_ZERO_TO_ONE ? 0 : -1;
+        }
+    }
+
+    return data;
+}
+
+float evaluate_network(struct fann * ann, struct fann_train_data * data, int digit) {
+    unsigned int correct_guess_count = 0;
+    unsigned int incorrect_guess_count = 0;
+    for (int i = 0; i < data->num_data; i++) {
+        fann_type * result_ptr = fann_run(ann, data->input[i]);
+        fann_type expected = data->output[i][0];
+
+        fann_type result = result_ptr[0];
+
+        if ( i < 10 ){
+            printf("%f %f\n", result, expected);
+        }
+
+        if (IS_OUTPUT_ZERO_TO_ONE) {
+            if (expected > 0.5 && result > 0.5) {
+                correct_guess_count++;
+            } else {
+                incorrect_guess_count++;
+            }
+        } else {
+            if (expected > 0 && result > 0) {
+                correct_guess_count++;
+            } else {
+                incorrect_guess_count++;
+            }
+        }
+    }
+    return (correct_guess_count) / (correct_guess_count + incorrect_guess_count);
+}
+
 int main() {
     srand((unsigned int) time(0));
 
-    printf("Reading input files.\n");
+    struct fann_train_data * train_data[10];
+    struct fann_train_data * test_data[10];
+    int image_width;
+    int image_height;
+    {
+        printf("Reading input idx files.\n");
+        struct idx_struct * train_images = create_idx_data_by_loading_file(source_type_train, input_type_image);
+        struct idx_struct * train_labels = create_idx_data_by_loading_file(source_type_train, input_type_label);
+        struct idx_struct * test_images = create_idx_data_by_loading_file(source_type_test, input_type_image);
+        struct idx_struct * test_labels = create_idx_data_by_loading_file(source_type_test, input_type_label);
 
-    struct idx_struct * train_images = create_idx_data_by_loading_file(source_type_train, input_type_image);
-    struct idx_struct * train_labels = create_idx_data_by_loading_file(source_type_train, input_type_label);
-    struct idx_struct * test_images = create_idx_data_by_loading_file(source_type_test, input_type_image);
-    struct idx_struct * test_labels = create_idx_data_by_loading_file(source_type_test, input_type_label);
-
-    if (!validate_data_from_files(train_images, train_labels, test_images, test_labels)) {
-        return 1;
-    }
-
-    printf("Creating dataset from file data.\n");
-
-    train_images->dimensions[0] /= 1;
-    train_labels->dimensions[0] /= 1;
-    test_images->dimensions[0] /= 1;
-    test_labels->dimensions[0] /= 1;
-
-    double ** train_input = malloc(sizeof(double *) * train_images->dimensions[0]);
-    double ** train_output = malloc(sizeof(double *) * train_labels->dimensions[0]);
-    double ** test_input = malloc(sizeof(double *) * test_images->dimensions[0]);
-    double ** test_output = malloc(sizeof(double *) * test_labels->dimensions[0]);
-
-    if (!train_input || !train_output || !test_input || !test_output) {
-        printf("Could not allocate training data\n");
-        return 1;
-    }
-
-    // Allocate memory for double inputs and outputs
-    for (int i = 0; i < train_images->dimensions[0]; i++) {
-        train_input[i] = malloc(sizeof(double) * (train_images->dimensions[1] * train_images->dimensions[2]));
-        if (!train_input[i]) {
-            printf("Could not allocate training inputs\n");
+        if (!validate_data_from_files(train_images, train_labels, test_images, test_labels)) {
             return 1;
         }
-        train_output[i] = malloc(sizeof(double) * 10);
-        if (!train_output[i]) {
-            printf("Could not allocate training outputs\n");
-            return 1;
-        }
-    }
-    for (int i = 0; i < test_images->dimensions[0]; i++) {
-        test_input[i] = malloc(sizeof(double) * (test_images->dimensions[1] * test_images->dimensions[2]));
-        if (!test_input[i]) {
-            printf("Could not allocate test inputs\n");
-            return 1;
-        }
-        test_output[i] = malloc(sizeof(double) * 10);
-        if (!test_output[i]) {
-            printf("Could not allocate test outputs\n");
-            return 1;
-        }
-    }
-    for (int i = 0; i < train_images->dimensions[0]; i++) {
-        for (int j = 0; j < train_images->dimensions[1] * train_images->dimensions[2]; j++) {
-            train_input[i][j] = 2.0 * train_images->data[i * (train_images->dimensions[1] * train_images->dimensions[2]) + j] / 255.0 - 1.0;
-        }
-        for (int j = 0; j < 10; j++) {
-            train_output[i][j] = train_labels->data[i] == j ? 1.0 : -1.0;
-        }
-    }
-    for (int i = 0; i < test_images->dimensions[0]; i++) {
-        for (int j = 0; j < test_images->dimensions[1] * test_images->dimensions[2]; j++) {
-            test_input[i][j] = 2.0 * test_images->data[i * (test_images->dimensions[1] * test_images->dimensions[2]) + j] / 255.0 - 1.0;
-        }
-        for (int j = 0; j < 10; j++) {
-            test_output[i][j] = test_labels->data[i] == j ? 1.0 : -1.0;
-        }
-    }
-    printf("Samples:\n");
-    for (int i = 2; i < 4; i++) {
-        printf("Sample %d from training images:\n", i);
-        print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], train_output[i], 0);
-    }
-    for (int i = 2; i < 4; i++) {
-        printf("Sample %d from test images:\n", i);
-        print_grayscale_image(test_input[i], test_images->dimensions[1], test_images->dimensions[2], test_output[i], 0);
-    }
 
-    struct hyperparameters * h = create_hyperparameters(train_images->dimensions[1], train_images->dimensions[2], 10);
-
-    printf("Creating network.\n");
-    struct fann * ann = create_network_with_hyperparameters(h);
-
-    fann_set_activation_function_hidden(ann, FANN_SIGMOID_SYMMETRIC);
-    fann_set_activation_function_output(ann, FANN_SIGMOID_SYMMETRIC);
-
-    struct fann_train_data * data = fann_create_train_pointer_array(
-        train_images->dimensions[0], // Amount of training data
-        train_images->dimensions[1] * train_images->dimensions[2], // Input size
-        train_input,
-        10, // Output size
-        train_output
-    );
-
-    printf("Training network.\n");
-    fann_train_on_data(
-        ann,
-        data,
-        15, // max epochs
-        3, // epochs between reports
-        0.001 // desired error
-    );
-
-    int corrects = 0;
-    int incorrects = 0;
-    printf("Testing network with training data:\n");
-    for (int i = 0; i < train_images->dimensions[0]; i++) {
-        double * result = fann_run(ann, train_input[i]);
-        double * expected = train_output[i];
-        if (i < 2) {
-            printf("Train image %d feed-forward results:\n", i);
-            print_grayscale_image(train_input[i], train_images->dimensions[1], train_images->dimensions[2], expected, result);
-        }
-
-        int expectedMaxValueId = 0;
-        double expectedMaxValue = result[expectedMaxValueId];
-        int outputMaxValueId = 0;
-        double outputMaxValue = expected[outputMaxValueId];
-        for (int i = 1; i < 10; i++) {
-            if (result[i] > expectedMaxValue) {
-                outputMaxValueId = i;
-                outputMaxValue = result[outputMaxValueId];
-            }
-            if (expected[i] > expectedMaxValue) {
-                expectedMaxValueId = i;
-                expectedMaxValue = expected[expectedMaxValueId];
+        printf("Creating dataset from file data.\n");
+        for (int i = 0; i < 10; i++) {
+            train_data[i] = create_data_from_idx(train_images, train_labels, i);
+            test_data[i] = create_data_from_idx(test_images, test_labels, i);
+            if (!train_data[i] || !test_data[i]) {
+                return 1;
             }
         }
+        image_width = train_images->dimensions[1];
+        image_height = train_images->dimensions[2];
 
-        if (expectedMaxValueId == outputMaxValueId) {
-            corrects++;
-        } else {
-            incorrects++;
-        }
-    }
-    printf("Matches %d out of %d (%.2f %%)\n", corrects, corrects+incorrects, 100.0f * corrects / (corrects + incorrects));
-    printf("Testing network with testing data:\n");
-    corrects = 0;
-    incorrects = 0;
-    for (int i = 0; i < test_images->dimensions[0]; i++) {
-        double * result = fann_run(ann, test_input[i]);
-        double * expected = test_output[i];
-        if (i < 2) {
-            printf("Test image %d feed-forward results:\n", i);
-            print_grayscale_image(test_input[i], test_images->dimensions[1], test_images->dimensions[2], expected, result);
-        }
-
-        int expectedMaxValueId = 0;
-        double expectedMaxValue = result[expectedMaxValueId];
-        int outputMaxValueId = 0;
-        double outputMaxValue = expected[outputMaxValueId];
-        for (int i = 1; i < 10; i++) {
-            if (result[i] > expectedMaxValue) {
-                outputMaxValueId = i;
-                outputMaxValue = result[outputMaxValueId];
-            }
-            if (expected[i] > expectedMaxValue) {
-                expectedMaxValueId = i;
-                expectedMaxValue = expected[expectedMaxValueId];
-            }
-        }
-
-        if (expectedMaxValueId == outputMaxValueId) {
-            corrects++;
-        } else {
-            incorrects++;
-        }
-    }
-    printf("Matches %d out of %d (%.2f %%)\n", corrects, corrects+incorrects, 100.0f * corrects / (corrects + incorrects));
-
-    for (int i = 0; i < train_labels->dimensions[0]; i++) {
-        free(train_input[i]);
-        free(train_output[i]);
-    }
-    for (int i = 0; i < test_images->dimensions[0]; i++) {
-        free(test_input[i]);
-        free(test_output[i]);
+        destroy_idx_data(train_images);
+        destroy_idx_data(train_labels);
+        destroy_idx_data(test_images);
+        destroy_idx_data(test_labels);
     }
 
-    fann_destroy_train(data);
-    fann_destroy(ann);
-    destroy_hyperparameters(h);
-    free(train_input);
-    free(train_output);
-    free(test_input);
-    free(test_output);
-    destroy_idx_data(train_images);
-    destroy_idx_data(train_labels);
-    destroy_idx_data(test_images);
-    destroy_idx_data(test_labels);
+    {
+        printf("Samples:\n");
+        for (int i = 0; i < 3; i++) {
+            int digit_index = (int)(10.0 * random_float_unit());
+            int data_index = (int)((float) train_data[digit_index]->num_data * random_float_unit());
+
+            printf("Sample %d from training images (is %d? %s):\n", data_index, digit_index, (train_data[digit_index]->output[data_index][0]) > 0.5 ? "Yes" : "No");
+            print_grayscale_image(train_data[digit_index]->input[data_index], image_width, image_height);
+        }
+        for (int i = 0; i < 3; i++) {
+            int digit_index = (int)(10.0 * random_float_unit());
+            int data_index = (int)((float) test_data[digit_index]->num_data * random_float_unit());
+
+            printf("Sample %d from training images (is %d? %s):\n", data_index, digit_index, test_data[digit_index]->output[data_index][0] > 0.5 ? "Yes" : "No");
+            print_grayscale_image(test_data[digit_index]->input[data_index], image_width, image_height);
+        }
+    }
+
+    struct fann * ann[10];
+    {
+        struct hyperparameters * h = create_hyperparameters(image_width, image_height, 1);
+
+        printf("Creating networks.\n");
+        for (int i = 0; i < 10; i++) {
+            ann[i] = create_network_with_hyperparameters(h);
+            fann_set_activation_function_hidden(ann[i], FANN_ELLIOT);
+            fann_set_activation_function_output(ann[i], FANN_SIGMOID_STEPWISE);
+        }
+
+        destroy_hyperparameters(h);
+    }
+
+    printf("Evaluating networks.\n");
+    for (int i = 0; i < 10; i++) {
+        float performance = evaluate_network(ann[i], test_data[i], i);
+        printf("Network %d: Performance: %.3f %%\n", i, 100.0 * performance);
+    }
+
+    printf("Training networks.\n");
+    for (int i = 0; i < 10; i++) {
+        printf("Network %d\n", i);
+        fann_train_on_data(
+            ann[i],
+            train_data[i],
+            20, // max epochs
+            5, // epochs between reports
+            0.001 // desired error
+        );
+    }
+
+    printf("Evaluating networks.\n");
+    for (int i = 0; i < 10; i++) {
+        float performance = evaluate_network(ann[i], test_data[i], i);
+        printf("Network %d: Performance: %.3f %%\n", i, 100.0 * performance);
+    }
+
+    printf("Freeing memory\n");
+    for (int i = 0; i < 10; i++) {
+        fann_destroy_train(train_data[i]);
+        fann_destroy_train(test_data[i]);
+        fann_destroy(ann[i]);
+    }
 
     return 0;
 }
