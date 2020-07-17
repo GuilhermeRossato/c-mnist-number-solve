@@ -17,6 +17,7 @@
 #define SAVE_NETWORKS 1
 #define IS_INPUT_ZERO_TO_ONE 1
 #define IS_OUTPUT_ZERO_TO_ONE 1
+#define TRAINING_STEP_COUNT 50
 
 int dataset_size;
 int epoch_count;
@@ -28,6 +29,76 @@ void fann_train_on_file(struct fann *ann, const char *filename, unsigned int max
 
 enum source_type_t {source_type_test, source_type_train};
 enum input_type_t {input_type_image, input_type_label};
+
+// To avoid calculating a percentile, which would use a lot of memory, this function approaches the percentile iteratively and returns the reached point
+// Usually you pass in 0.5 as degradation (50% connections pruned), it would return 0.495, so it's precise enough.
+float apply_degradation(struct fann * ann, float degradation_percentile) {
+    if (!ann || !ann->weights) {
+        printf("Invalid network\n");
+        return 0;
+    }
+    unsigned int weight_count = 0;
+    fann_type * last_weight = ((fann_type *) ann->weights) + ann->total_connections;
+
+    fann_type min_abs_weight = 999999;
+    fann_type max_abs_weight = 999999;
+
+    for(fann_type * weights = ann->weights; weights != last_weight; weights++) {
+        weight_count++;
+        float weight_abs = *weights > 0 ? *weights : -(*weights);
+
+        if (max_abs_weight == 999999 || weight_abs < max_abs_weight) {
+            max_abs_weight = weight_abs;
+        }
+        if (min_abs_weight == 999999 || weight_abs > min_abs_weight) {
+            min_abs_weight = weight_abs;
+        }
+    }
+
+    fann_type weight_cutoff;
+    fann_type actual = 0;
+    unsigned int below_count;
+
+    float last_actual = 0;
+    float last_last_actual = 0;
+
+    for (int i = 0; i < 20; i++) {
+        weight_cutoff = (min_abs_weight + max_abs_weight) / 2.0;
+        below_count = 0;
+        for(fann_type * weights = ann->weights; weights != last_weight; weights++) {
+            float weight_abs = *weights > 0 ? *weights : -(*weights);
+            if (weight_abs < weight_cutoff) {
+                below_count++;
+            }
+        }
+        last_last_actual = last_actual;
+        last_actual = actual;
+        actual = (float) below_count / (float) weight_count;
+        if (i > 4 && actual == last_actual && last_actual == last_last_actual) {
+            break;
+        }
+        float err = actual > degradation_percentile ? actual - degradation_percentile : degradation_percentile - actual;
+        if (err < 0.0001) {
+            break;
+        }
+        if (actual < degradation_percentile) {
+            max_abs_weight = (min_abs_weight + max_abs_weight) / 2.0;
+        } else {
+            min_abs_weight = (min_abs_weight + max_abs_weight) / 2.0;
+        }
+    }
+
+    below_count = 0;
+    for(fann_type * weights = ann->weights; weights != last_weight; weights++) {
+        float weight_abs = *weights > 0 ? *weights : -(*weights);
+        if (weight_abs < weight_cutoff) {
+            below_count++;
+            *weights = 0;
+        }
+    }
+
+    return (float) below_count / (float) weight_count;
+}
 
 struct idx_struct * create_idx_data_by_loading_file(
     enum source_type_t source_type,
@@ -324,10 +395,11 @@ int main(int argn, char ** argv) {
 
         printf("Training networks.\n");
         {
+            char buffer[256];
             for (int i = 0; i < 10; i++) {
-                for (int step_id = 0; step_id < 20; step_id++) {
+                for (int step_id = 0; step_id < TRAINING_STEP_COUNT; step_id++) {
                     struct fann_train_data * subdata = create_data_subset(train_data[i], dataset_size, 1);
-                    float dataset_positivity;
+                    float dataset_positivity = 0;
                     {
                         int positive = 0;
                         int negative = 0;
@@ -338,9 +410,39 @@ int main(int argn, char ** argv) {
                                 negative++;
                             }
                         }
-                        dataset_positivity = (float) positive / (float) (positive + negative);
+                        if (positive + negative == 0) {
+                            dataset_positivity = 0;
+                        } else {
+                            dataset_positivity = (float) positive / (float) (positive + negative);
+                        }
                     }
-                    printf("Network %d/%d - Step %d/%d - (Dataset positivity: %.2f)\n", i, 10, step_id, 40, dataset_positivity);
+
+                    float degradation = 0.85 * ((step_id - 20.0) / (float) (TRAINING_STEP_COUNT - 1.0 - 20.0));
+                    float real_degradation = 0;
+                    if (degradation < 0.0) { degradation = 0; }
+                    if (degradation > 0.0) {
+                        real_degradation = apply_degradation(ann[i], degradation);
+                    }
+
+                    // Write CSV with performance to allow us to verify the progress as it learns
+                    float performance = 0;
+                    {
+                        snprintf(buffer, sizeof(buffer) - 1, "./output/%d-detecting-network-v%d-learning.csv", i, variant);
+                        FILE * fp = fopen(buffer, step_id == 0 ? "w" : "a");
+                        if (fp) {
+                            if (step_id == 0) {
+                                fprintf(fp, "Step,Epoch,Performance,Dataset Positivity,Degradation\n");
+                            }
+                            performance = evaluate_network(ann[i], test_data[i]);
+                            fprintf(fp, "%d,%d,", step_id, step_id * epoch_count);
+                            fprintf(fp, "%.5f,%.4f,", performance, dataset_positivity);
+                            fprintf(fp, real_degradation == 0 ? "%.0f" : "%.6f", real_degradation);
+                            fprintf(fp, "\n");
+                            fclose(fp);
+                        }
+                    }
+
+                    printf("Network %d/%d - Step %d/%d - Perf: %.2f %% - Positivity: %.2f %% - Degradation: %.2f %%\n", i, 10, step_id, TRAINING_STEP_COUNT, 100.0 * performance, 100.0 * dataset_positivity, 100.0 * real_degradation);
 
                     fann_train_on_data(
                         ann[i],
@@ -351,6 +453,10 @@ int main(int argn, char ** argv) {
                     );
 
                     fann_destroy_train(subdata);
+
+                    if (step_id+1 >= TRAINING_STEP_COUNT) {
+                        apply_degradation(ann[i], degradation);
+                    }
                 }
             }
         }

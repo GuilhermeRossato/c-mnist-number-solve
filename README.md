@@ -60,6 +60,21 @@ You may pass a number between 0 and 7 (inclusive) to the network to train the di
 
 In conclusion the network can now stop if it reaches a high number of matching likehood (e.g. if the inference of digit 3 yields 90% certainty you can be pretty sure all others will be close to zero and stop the inference) or even process all digits in parallel, which should easily speed up the inference by a factor of 5, up to 10 times since the inference can be done in a 100% parallel fashion.
 
+### Version 3 - Parallel with connection degradation (07/2020)
+
+Same thing as parallel version but now each network starts degradating as it trains. Degrading is the process of removing networks with lowest weights as the networks trains. This removes useless multiplications of very low numbers, which have very low correlation with the output.
+
+Each network, in addition to calculating its performance as it trains, outputs a csv (that can be oppened with libreoffice, google sheets or excel) to allow you to analyze the decrease in performance caused by the degradation.
+
+Each network managed to keep a performance of 95% even when degradated by 90%. Probably because of some overfitting since the evaluation of the testing dataset when the network is degradated by 97.5% (~79k connections removed, ~2k left per digit), yields a performance of 74.21%.
+
+x * 0.775 = 633530
+x = 633530 / 0.775
+
+Degrading the network by 77.5% removes a total of 633530 inference multiplications (leaving 122630 out of 817450) and yields a performance of 95.54% (guesses 9554 correctly and 446 incorrectly out of 10000 from the testing dataset). A second execution to confirm the performance resulted in 96.64% (336 incorrect).
+
+Found it pretty interesting.
+
 ## Visualizing input
 
 I managed to write a really nice function (`print_grayscale_image`) to print the number on the console, like so:
