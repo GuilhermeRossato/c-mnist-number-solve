@@ -71,7 +71,7 @@ Each network managed to keep a performance of 95% even when degradated by 90%. P
 x * 0.775 = 633530
 x = 633530 / 0.775
 
-Degrading the network by 77.5% removes a total of 633530 inference multiplications (leaving 122630 out of 817450) and yields a performance of 95.54% (guesses 9554 correctly and 446 incorrectly out of 10000 from the testing dataset). A second execution to confirm the performance resulted in 96.64% (336 incorrect).
+Degrading the network by 84.998% removes a total of 694820 inference multiplications (leaving 122630 out of 817450) and yields a performance of 95.54% (guesses 9554 correctly and 446 incorrectly out of 10000 from the testing dataset). A second execution to confirm the performance resulted in 96.64% (336 incorrect).
 
 Found it pretty interesting.
 
